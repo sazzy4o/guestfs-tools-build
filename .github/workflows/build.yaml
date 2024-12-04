@@ -19,5 +19,7 @@ jobs:
         run: sudo apt-get install -y autoconf flex bison libguestfs-dev xorriso libxml2 libncurses-dev libjansson-dev libmagic-dev libosinfo-1.0-dev opam ocaml-findlib  libguestfs-ocaml-dev
       - name: Configure
         run: ./configure CFLAGS="-static -O3" --prefix=$PWD
+      - name: Show makefile
+        run: cat Makefile
       - name: Build
         run: make
