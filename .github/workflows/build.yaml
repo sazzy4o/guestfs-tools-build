@@ -18,6 +18,6 @@ jobs:
       - name: Install deps
         run: sudo apt-get install -y autoconf flex bison libguestfs-dev xorriso libxml2 libncurses-dev libjansson-dev libmagic-dev libosinfo-1.0-dev opam ocaml-findlib  libguestfs-ocaml-dev
       - name: Configure
-        run: ./configure CFLAGS="-static -O3" --prefix=$PWD
+        run: ./configure
       - name: Build
-        run: make LDFLAGS="--static -O3" && make install
+        run: make
