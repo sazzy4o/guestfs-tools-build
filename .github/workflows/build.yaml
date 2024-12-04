@@ -5,14 +5,19 @@ jobs:
   build:
     name: Build Test
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ./guestfs-tools-1.52.2
     steps:
       - name: Download Source
+        working-directory: ./
         run: wget https://download.libguestfs.org/guestfs-tools/1.52-stable/guestfs-tools-1.52.2.tar.gz
       - name: Unzip
+        working-directory: ./
         run: tar -xzf guestfs-tools-1.52.2.tar.gz && cd guestfs-tools-1.52.2
       - name: Install deps
         run: sudo apt-get install -y autoconf flex bison libguestfs-dev
-      - name: Install configure
+      - name: Configure
         run: ./configure CFLAGS="-static -O3" --prefix=$PWD
       - name: Build
         run: make LDFLAGS="--static -O3" && make install
