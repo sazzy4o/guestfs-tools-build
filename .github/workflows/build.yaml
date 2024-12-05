@@ -20,4 +20,4 @@ jobs:
       - name: Configure
         run: ./configure CFLAGS="-static -O3" --prefix=$PWD
       - name: Build
-        run: make sparsify
+        run: make virt-sparsify
