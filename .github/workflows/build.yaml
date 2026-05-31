@@ -13,7 +13,9 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-24.04
+    # Build on the oldest supported GitHub-hosted Ubuntu image so dynamically
+    # linked guestfs-tools binaries keep an older glibc baseline.
+    runs-on: ubuntu-22.04
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
@@ -55,6 +57,7 @@ jobs:
             libzstd-dev \
             ocaml-findlib \
             ocaml-nox \
+            patchelf \
             pkg-config \
             qemu-system-x86 \
             qemu-utils \
@@ -136,10 +139,16 @@ jobs:
           export OCAMLPATH="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/lib/ocaml"
           export LD_LIBRARY_PATH="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib:${LD_LIBRARY_PATH:-}"
           CPPFLAGS="-I${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/include -Dcaml_unix_error=unix_error" \
-            LDFLAGS="-L${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib" \
+            LDFLAGS="-L${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib -Wl,-rpath,\$ORIGIN/../lib" \
             ./configure --prefix=/usr/local
           make -j"$(nproc)"
           make install DESTDIR="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}"
+          find "${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/bin" -maxdepth 1 -type f -perm -111 -print0 |
+            while IFS= read -r -d '' path; do
+              if ldd "$path" 2>/dev/null | grep -q "libguestfs.so"; then
+                patchelf --set-rpath '$ORIGIN/../lib' "$path"
+              fi
+            done
 
       - name: Verify static binaries
         run: |
@@ -154,9 +163,12 @@ jobs:
             path="dist/${ARTIFACT_BASENAME}/usr/local/bin/${bin}"
             test -x "$path"
             file "$path"
-            LD_LIBRARY_PATH="dist/${ARTIFACT_BASENAME}/usr/local/lib" ldd "$path" | grep -q "libguestfs.so"
+            test "$(patchelf --print-rpath "$path")" = '$ORIGIN/../lib'
+            ldd "$path" | grep -q "libguestfs.so"
+            ! readelf --version-info "$path" | grep -E "GLIBC_2\.(3[6-9]|[4-9][0-9])"
           done
           test -e "dist/${ARTIFACT_BASENAME}/usr/local/lib/libguestfs.so"
+          ! readelf --version-info "dist/${ARTIFACT_BASENAME}/usr/local/lib/libguestfs.so" | grep -E "GLIBC_2\.(3[6-9]|[4-9][0-9])"
 
       - name: Package artifacts
         run: |
@@ -171,6 +183,10 @@ jobs:
           find "$bin_dir" -maxdepth 1 \( -type f -o -type l \) -print0 | sort -z | while IFS= read -r -d '' path; do
             bin="$(basename "$path")"
             test -x "$path"
+            if ldd "$path" 2>/dev/null | grep -q "libguestfs.so"; then
+              echo "Skipping standalone artifact for dynamically linked binary: $bin"
+              continue
+            fi
             echo "Packaging binary artifact: $bin"
             cp -L "$path" "artifacts/${ARTIFACT_BASENAME}-${bin}"
             sha256sum "artifacts/${ARTIFACT_BASENAME}-${bin}" > "artifacts/${ARTIFACT_BASENAME}-${bin}.sha256"
