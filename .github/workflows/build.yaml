@@ -136,13 +136,17 @@ jobs:
           export PKG_CONFIG_PATH="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
           export OCAMLPATH="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/lib/ocaml"
           export LD_LIBRARY_PATH="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib:${LD_LIBRARY_PATH:-}"
-          STATIC_LIBS="$(PKG_CONFIG_PATH="${PKG_CONFIG_PATH}" pkg-config --libs --static libguestfs)"
           CPPFLAGS="-I${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/include -Dcaml_unix_error=unix_error" \
-            LDFLAGS="-static -L${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib" \
-            LIBGUESTFS_LIBS="$STATIC_LIBS" \
+            LDFLAGS="-L${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib" \
             ./configure --prefix=/usr/local
-          make -j"$(nproc)" LIBGUESTFS_LIBS="$STATIC_LIBS"
+          make -j"$(nproc)"
           make install DESTDIR="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}"
+          STATIC_LIBS="-static -L${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib -lguestfs $(pkg-config --libs --static libxml-2.0 json-c libpcre2-8 libtirpc) -lzstd -lpthread -ldl -lm -lstdc++"
+          rm -f resize/virt-resize sparsify/virt-sparsify
+          make -C resize LIBGUESTFS_LIBS="$STATIC_LIBS" virt-resize
+          make -C sparsify LIBGUESTFS_LIBS="$STATIC_LIBS" virt-sparsify
+          cp resize/virt-resize "${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/bin/virt-resize"
+          cp sparsify/virt-sparsify "${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/bin/virt-sparsify"
 
       - name: Verify static binaries
         run: |
@@ -159,13 +163,10 @@ jobs:
           mkdir -p artifacts
           bin_dir="dist/${ARTIFACT_BASENAME}/usr/local/bin"
           test -d "$bin_dir"
-          find "$bin_dir" -maxdepth 1 \( -type f -o -type l \) -printf "%f\n" | sort
-          find "$bin_dir" -maxdepth 1 \( -type f -o -type l \) -print0 | sort -z | while IFS= read -r -d '' path; do
-            bin="$(basename "$path")"
+          for bin in guestfish virt-rescue libguestfs-test-tool virt-resize virt-sparsify; do
+            path="$bin_dir/$bin"
             test -x "$path"
-            if file "$path" | grep -q "ELF"; then
-              file "$path" | grep -qi "statically linked"
-            fi
+            file "$path" | grep -qi "statically linked"
             echo "Packaging binary artifact: $bin"
             cp -L "$path" "artifacts/${ARTIFACT_BASENAME}-${bin}"
             sha256sum "artifacts/${ARTIFACT_BASENAME}-${bin}" > "artifacts/${ARTIFACT_BASENAME}-${bin}.sha256"
