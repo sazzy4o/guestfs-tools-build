@@ -67,8 +67,10 @@ jobs:
         run: |
           ac_cv_func_xmlBufferDetach=yes \
             ./configure \
-            CFLAGS="-static -O3" \
+            CFLAGS="-O3" \
             --prefix=/usr/local \
+            --enable-shared \
+            --disable-static \
             --disable-dependency-tracking \
             --disable-daemon \
             --disable-appliance \
