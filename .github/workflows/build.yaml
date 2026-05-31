@@ -183,7 +183,16 @@ jobs:
             bin="$(basename "$path")"
             test -x "$path"
             if ldd "$path" 2>/dev/null | grep -q "libguestfs.so"; then
-              echo "Skipping standalone artifact for dynamically linked binary: $bin"
+              echo "Packaging dynamically linked binary artifact: $bin"
+              bundle_dir="artifacts/${ARTIFACT_BASENAME}-${bin}.bundle"
+              mkdir -p "$bundle_dir/usr/local/bin" "$bundle_dir/usr/local/lib"
+              cp -L "$path" "$bundle_dir/usr/local/bin/$bin"
+              cp -a "dist/${ARTIFACT_BASENAME}/usr/local/lib/." "$bundle_dir/usr/local/lib/"
+              tar -C "$bundle_dir" -czf "artifacts/${ARTIFACT_BASENAME}-${bin}.tar.gz" usr
+              sha256sum "artifacts/${ARTIFACT_BASENAME}-${bin}.tar.gz" > "artifacts/${ARTIFACT_BASENAME}-${bin}.tar.gz.sha256"
+              test -s "artifacts/${ARTIFACT_BASENAME}-${bin}.tar.gz"
+              test -s "artifacts/${ARTIFACT_BASENAME}-${bin}.tar.gz.sha256"
+              rm -rf "$bundle_dir"
               continue
             fi
             echo "Packaging binary artifact: $bin"
