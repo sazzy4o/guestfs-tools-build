@@ -36,7 +36,6 @@ jobs:
             git \
             gperf \
             libaugeas-dev \
-            libaugeas-ocaml-dev \
             libguestfs-dev \
             libhivex-dev \
             libhivex-ocaml-dev \
