@@ -165,8 +165,17 @@ jobs:
           sha256sum "artifacts/${ARTIFACT_BASENAME}.tar.gz" > "artifacts/${ARTIFACT_BASENAME}.tar.gz.sha256"
           test -s "artifacts/${ARTIFACT_BASENAME}.tar.gz"
           test -s "artifacts/${ARTIFACT_BASENAME}.tar.gz.sha256"
-          test -d "dist/${ARTIFACT_BASENAME}/usr/local/bin"
-          find "dist/${ARTIFACT_BASENAME}/usr/local/bin" -maxdepth 1 -type f -o -type l | grep .
+          bin_dir="dist/${ARTIFACT_BASENAME}/usr/local/bin"
+          test -d "$bin_dir"
+          find "$bin_dir" -maxdepth 1 \( -type f -o -type l \) | grep .
+          for path in "$bin_dir"/*; do
+            test -f "$path" || test -L "$path" || continue
+            bin="$(basename "$path")"
+            cp -L "$path" "artifacts/${ARTIFACT_BASENAME}-${bin}"
+            sha256sum "artifacts/${ARTIFACT_BASENAME}-${bin}" > "artifacts/${ARTIFACT_BASENAME}-${bin}.sha256"
+            test -s "artifacts/${ARTIFACT_BASENAME}-${bin}"
+            test -s "artifacts/${ARTIFACT_BASENAME}-${bin}.sha256"
+          done
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
