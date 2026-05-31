@@ -1,6 +1,9 @@
 name: Release Workflow
 on: [create]
 
+permissions:
+  contents: write
+
 env:
   LIBGUESTFS_VERSION: 1.58.1
   LIBGUESTFS_SERIES: 1.58-stable
@@ -112,9 +115,10 @@ jobs:
           if-no-files-found: error
 
       - name: Create release
+        if: github.event.ref_type == 'tag'
         uses: ncipollo/release-action@v1
         with:
           artifacts: "artifacts/*"
-          tag: ${{ github.ref }}
-          name: ${{ github.ref }}
+          tag: ${{ github.event.ref }}
+          name: ${{ github.event.ref }}
           draft: true
