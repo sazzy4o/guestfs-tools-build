@@ -7,6 +7,7 @@ permissions:
 env:
   LIBGUESTFS_VERSION: 1.58.1
   LIBGUESTFS_SERIES: 1.58-stable
+  GUESTFS_TOOLS_VERSION: v1.55.6
   ARTIFACT_BASENAME: libguestfs-tools-1.58.1-linux-x86_64
 
 jobs:
@@ -26,21 +27,29 @@ jobs:
             bison \
             build-essential \
             cpio \
+            file \
             flex \
             gawk \
             gettext \
+            git \
             gperf \
             libaugeas-dev \
+            libaugeas-ocaml-dev \
             libguestfs-dev \
             libhivex-dev \
+            libhivex-ocaml-dev \
             libjansson-dev \
             libjson-c-dev \
+            liblzma-dev \
             libmagic-dev \
             libncurses-dev \
             libosinfo-1.0-dev \
+            libgettext-ocaml-dev \
+            libpcre-ocaml-dev \
             libpcre2-dev \
             libtirpc-dev \
             libvirt-dev \
+            libtool \
             libxml2-dev \
             libxml2-utils \
             libzstd-dev \
@@ -48,6 +57,7 @@ jobs:
             ocaml-nox \
             pkg-config \
             qemu-system-x86 \
+            qemu-utils \
             supermin \
             wget \
             xorriso \
@@ -68,16 +78,20 @@ jobs:
       - name: Configure
         working-directory: ./libguestfs-${{ env.LIBGUESTFS_VERSION }}
         run: |
+          STATIC_LIBS="$(pkg-config --libs --static libxml-2.0 json-c libpcre2-8 libtirpc) -lzstd -lpthread -ldl -lm -lstdc++"
           ac_cv_func_xmlBufferDetach=yes \
             ./configure \
             CFLAGS="-O3" \
+            LIBS="$STATIC_LIBS" \
             --prefix=/usr/local \
             --enable-shared \
-            --disable-static \
+            --enable-static \
             --disable-dependency-tracking \
             --disable-daemon \
             --disable-appliance \
-            --disable-ocaml \
+            --without-libvirt \
+            --disable-fuse \
+            --enable-ocaml \
             --disable-perl \
             --disable-python \
             --disable-ruby \
@@ -91,11 +105,58 @@ jobs:
 
       - name: Build
         working-directory: ./libguestfs-${{ env.LIBGUESTFS_VERSION }}
-        run: make -j"$(nproc)"
+        run: |
+          STATIC_LIBS="$(pkg-config --libs --static libxml-2.0 json-c libpcre2-8 libtirpc) -lzstd -lpthread -ldl -lm -lstdc++"
+          make -j"$(nproc)" LIBS="$STATIC_LIBS"
+          rm -f \
+            fish/guestfish fish/.libs/guestfish \
+            rescue/virt-rescue rescue/.libs/virt-rescue \
+            test-tool/libguestfs-test-tool test-tool/.libs/libguestfs-test-tool
+          make -C fish LDFLAGS="-all-static" LIBS="$STATIC_LIBS" guestfish
+          make -C rescue LDFLAGS="-all-static" LIBS="$STATIC_LIBS" virt-rescue
+          make -C test-tool LDFLAGS="-all-static" LIBS="$STATIC_LIBS" libguestfs-test-tool
 
       - name: Install
         working-directory: ./libguestfs-${{ env.LIBGUESTFS_VERSION }}
-        run: make install DESTDIR="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}"
+        run: |
+          STATIC_LIBS="$(pkg-config --libs --static libxml-2.0 json-c libpcre2-8 libtirpc) -lzstd -lpthread -ldl -lm -lstdc++"
+          make install DESTDIR="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}" LIBS="$STATIC_LIBS"
+          cp fish/guestfish "${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/bin/guestfish"
+          cp rescue/virt-rescue "${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/bin/virt-rescue"
+          cp test-tool/libguestfs-test-tool "${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/bin/libguestfs-test-tool"
+
+      - name: Build guestfs-tools
+        run: |
+          git clone --branch "${GUESTFS_TOOLS_VERSION}" --depth 1 --recurse-submodules \
+            https://github.com/libguestfs/guestfs-tools.git guestfs-tools
+          cd guestfs-tools
+          git submodule update --init --recursive
+          autoreconf -i
+          export PKG_CONFIG_PATH="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          export OCAMLPATH="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/lib/ocaml"
+          export LD_LIBRARY_PATH="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib:${LD_LIBRARY_PATH:-}"
+          CPPFLAGS="-I${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/include -Dcaml_unix_error=unix_error" \
+            LDFLAGS="-L${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}/usr/local/lib" \
+            ./configure --prefix=/usr/local
+          make -j"$(nproc)"
+          make install DESTDIR="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}"
+
+      - name: Verify static binaries
+        run: |
+          for bin in guestfish virt-rescue libguestfs-test-tool; do
+            path="dist/${ARTIFACT_BASENAME}/usr/local/bin/${bin}"
+            test -x "$path"
+            file "$path"
+            file "$path" | grep -qi "statically linked"
+            ! ldd "$path"
+          done
+          for bin in virt-resize virt-sparsify; do
+            path="dist/${ARTIFACT_BASENAME}/usr/local/bin/${bin}"
+            test -x "$path"
+            file "$path"
+            LD_LIBRARY_PATH="dist/${ARTIFACT_BASENAME}/usr/local/lib" ldd "$path" | grep -q "libguestfs.so"
+          done
+          test -e "dist/${ARTIFACT_BASENAME}/usr/local/lib/libguestfs.so"
 
       - name: Package artifacts
         run: |
