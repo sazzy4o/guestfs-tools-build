@@ -31,6 +31,7 @@ jobs:
             libguestfs-dev \
             libguestfs-ocaml-dev \
             libhivex-dev \
+            libhivex-ocaml-dev \
             libjansson-dev \
             libjson-c-dev \
             libmagic-dev \
@@ -52,6 +53,7 @@ jobs:
             zstd
           pkg-config --modversion augeas
           pkg-config --modversion json-c
+          ocamlfind query hivex
 
       - name: Download source
         run: |
