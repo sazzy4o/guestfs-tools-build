@@ -7,17 +7,17 @@ jobs:
     runs-on: ubuntu-24.04
     defaults:
       run:
-        working-directory: ./guestfs-tools-1.52.2
+        working-directory: ./libguestfs-1.58.1
     steps:
       - name: Download Source
         working-directory: ./
-        run: wget https://download.libguestfs.org/guestfs-tools/1.52-stable/guestfs-tools-1.52.2.tar.gz
+        run: wget https://download.libguestfs.org/1.58-stable/libguestfs-1.58.1.tar.gz
       - name: Unzip
         working-directory: ./
-        run: tar -xzf guestfs-tools-1.52.2.tar.gz && cd guestfs-tools-1.52.2
+        run: tar -xzf libguestfs-1.58.1.tar.gz && cd libguestfs-1.58.1
       - name: Install deps
         run: sudo apt-get install -y autoconf flex bison libguestfs-dev xorriso libxml2 libncurses-dev libjansson-dev libmagic-dev libosinfo-1.0-dev opam ocaml-findlib  libguestfs-ocaml-dev
       - name: Configure
         run: ./configure CFLAGS="-static -O3" --prefix=$PWD
       - name: Build
-        run: make virt-sparsify
+        run: make
