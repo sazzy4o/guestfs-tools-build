@@ -167,10 +167,11 @@ jobs:
           test -s "artifacts/${ARTIFACT_BASENAME}.tar.gz.sha256"
           bin_dir="dist/${ARTIFACT_BASENAME}/usr/local/bin"
           test -d "$bin_dir"
-          find "$bin_dir" -maxdepth 1 \( -type f -o -type l \) | grep .
-          for path in "$bin_dir"/*; do
-            test -f "$path" || test -L "$path" || continue
+          find "$bin_dir" -maxdepth 1 \( -type f -o -type l \) -printf "%f\n" | sort
+          find "$bin_dir" -maxdepth 1 \( -type f -o -type l \) -print0 | sort -z | while IFS= read -r -d '' path; do
             bin="$(basename "$path")"
+            test -x "$path"
+            echo "Packaging binary artifact: $bin"
             cp -L "$path" "artifacts/${ARTIFACT_BASENAME}-${bin}"
             sha256sum "artifacts/${ARTIFACT_BASENAME}-${bin}" > "artifacts/${ARTIFACT_BASENAME}-${bin}.sha256"
             test -s "artifacts/${ARTIFACT_BASENAME}-${bin}"
