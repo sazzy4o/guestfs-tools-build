@@ -41,6 +41,8 @@ jobs:
             libxml2-dev \
             libxml2-utils \
             libzstd-dev \
+            ocaml-findlib \
+            ocaml-nox \
             pkg-config \
             qemu-system-x86 \
             supermin \
@@ -49,6 +51,8 @@ jobs:
             zstd
           pkg-config --modversion augeas
           pkg-config --modversion json-c
+          ocamlc -version
+          ocamlfind printconf
 
       - name: Download source
         run: |
@@ -65,6 +69,8 @@ jobs:
             CFLAGS="-static -O3" \
             --prefix=/usr/local \
             --disable-dependency-tracking \
+            --disable-daemon \
+            --disable-appliance \
             --disable-ocaml \
             --disable-perl \
             --disable-python \
