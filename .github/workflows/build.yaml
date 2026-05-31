@@ -1,23 +1,99 @@
-name: Build Test
-on: [push]
+name: Release Workflow
+on: [create]
+
+env:
+  LIBGUESTFS_VERSION: 1.58.1
+  LIBGUESTFS_SERIES: 1.58-stable
+  ARTIFACT_BASENAME: libguestfs-tools-1.58.1-linux-x86_64
 
 jobs:
   build:
-    name: Build Test
+    name: Build
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: ./libguestfs-1.58.1
     steps:
-      - name: Download Source
-        working-directory: ./
-        run: wget https://download.libguestfs.org/1.58-stable/libguestfs-1.58.1.tar.gz
-      - name: Unzip
-        working-directory: ./
-        run: tar -xzf libguestfs-1.58.1.tar.gz && cd libguestfs-1.58.1
+      - name: Code checkout
+        uses: actions/checkout@v4
+
       - name: Install deps
-        run: sudo apt-get install -y autoconf flex bison libguestfs-dev xorriso libxml2 libncurses-dev libjansson-dev libmagic-dev libosinfo-1.0-dev opam ocaml-findlib  libguestfs-ocaml-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            bison \
+            build-essential \
+            cpio \
+            flex \
+            gawk \
+            gettext \
+            gperf \
+            libguestfs-dev \
+            libguestfs-ocaml-dev \
+            libhivex-dev \
+            libjansson-dev \
+            libmagic-dev \
+            libncurses-dev \
+            libosinfo-1.0-dev \
+            libpcre2-dev \
+            libtirpc-dev \
+            libvirt-dev \
+            libxml2-dev \
+            libxml2-utils \
+            libzstd-dev \
+            ocaml-findlib \
+            opam \
+            pkg-config \
+            qemu-system-x86 \
+            supermin \
+            wget \
+            xorriso \
+            zstd
+
+      - name: Download source
+        run: |
+          wget -4 -O "libguestfs-${LIBGUESTFS_VERSION}.tar.gz" \
+            "https://download.libguestfs.org/${LIBGUESTFS_SERIES}/libguestfs-${LIBGUESTFS_VERSION}.tar.gz"
+
+      - name: Extract source
+        run: tar -xzf "libguestfs-${LIBGUESTFS_VERSION}.tar.gz"
+
       - name: Configure
-        run: ./configure CFLAGS="-static -O3" --prefix=$PWD
+        working-directory: ./libguestfs-${{ env.LIBGUESTFS_VERSION }}
+        run: |
+          ./configure \
+            CFLAGS="-static -O3" \
+            --prefix=/usr/local \
+            --disable-dependency-tracking
+
       - name: Build
-        run: make
+        working-directory: ./libguestfs-${{ env.LIBGUESTFS_VERSION }}
+        run: make -j"$(nproc)"
+
+      - name: Install
+        working-directory: ./libguestfs-${{ env.LIBGUESTFS_VERSION }}
+        run: make install DESTDIR="${GITHUB_WORKSPACE}/dist/${ARTIFACT_BASENAME}"
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts
+          tar -C dist -czf "artifacts/${ARTIFACT_BASENAME}.tar.gz" "${ARTIFACT_BASENAME}"
+          sha256sum "artifacts/${ARTIFACT_BASENAME}.tar.gz" > "artifacts/${ARTIFACT_BASENAME}.tar.gz.sha256"
+          test -s "artifacts/${ARTIFACT_BASENAME}.tar.gz"
+          test -s "artifacts/${ARTIFACT_BASENAME}.tar.gz.sha256"
+          test -d "dist/${ARTIFACT_BASENAME}/usr/local/bin"
+          find "dist/${ARTIFACT_BASENAME}/usr/local/bin" -maxdepth 1 -type f -o -type l | grep .
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_BASENAME }}
+          path: artifacts/*
+          if-no-files-found: error
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "artifacts/*"
+          tag: ${{ github.ref }}
+          name: ${{ github.ref }}
+          draft: true
