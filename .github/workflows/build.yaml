@@ -27,6 +27,7 @@ jobs:
             gawk \
             gettext \
             gperf \
+            libaugeas-dev \
             libguestfs-dev \
             libguestfs-ocaml-dev \
             libhivex-dev \
@@ -49,6 +50,7 @@ jobs:
             wget \
             xorriso \
             zstd
+          pkg-config --modversion augeas
           pkg-config --modversion json-c
 
       - name: Download source
